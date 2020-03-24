@@ -1,0 +1,147 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(keras)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+```
+
+```{r}
+#Keeps 10000 words and discards rare words
+imdb <- dataset_imdb(num_words = 10000)
+
+c(train_data, train_labels) %<-% imdb$train
+c(test_data, test_labels) %<-% imdb$test
+```
+
+```{r}
+#Conveniently, the dataset comes with an index mapping words to integers, which has to be downloaded separately
+word_index <- dataset_imdb_word_index()
+```
+```{r}
+#Explore data; The dataset comes preprocessed: each example is an array of integers representing the words of the movie review. Each label is an integer value of either 0 or 1, where 0 is a negative review, and 1 is a positive review.
+paste0("Training entries: ", length(train_data), ", labels: ", length(train_labels))
+```
+```{r}
+#The texts of the reviews have been converted to integers, where each integer represents a specific word in a dictionary. Here’s what the first review looks like
+train_data[[1]]
+```
+```{r}
+#Movie reviews may be different lengths. The below code shows the number of words in the first and second review
+length(train_data[[1]])
+length(train_data[[2]])
+```
+```{r}
+#Convert integers back to words
+word_index_df <- data.frame(
+  word = names(word_index),
+  idx = unlist(word_index, use.names = FALSE),
+  stringsAsFactors = FALSE
+)
+
+# The first indices are reserved  
+word_index_df <- word_index_df %>% mutate(idx = idx + 3)
+word_index_df <- word_index_df %>%
+  add_row(word = "<PAD>", idx = 0)%>%
+  add_row(word = "<START>", idx = 1)%>%
+  add_row(word = "<UNK>", idx = 2)%>%
+  add_row(word = "<UNUSED>", idx = 3)
+
+word_index_df <- word_index_df %>% arrange(idx)
+
+decode_review <- function(text){
+  paste(map(text, function(number) word_index_df %>%
+              filter(idx == number) %>%
+              select(word) %>% 
+              pull()),
+        collapse = " ")
+}
+```
+```{r}
+#Now we can use the decode_review function to display the text for the first review
+decode_review(train_data[[1]])
+```
+```{r}
+#Prepare the data; we can pad the arrays so they all have the same length, then create an integer tensor of shape num_examples * max_length
+train_data <- pad_sequences(
+  train_data,
+  value = word_index_df %>% filter(word == "<PAD>") %>% select(idx) %>% pull(),
+  padding = "post",
+  maxlen = 256
+)
+
+test_data <- pad_sequences(
+  test_data,
+  value = word_index_df %>% filter(word == "<PAD>") %>% select(idx) %>% pull(),
+  padding = "post",
+  maxlen = 256
+)
+```
+
+```{r}
+#Length
+length(train_data[1, ])
+length(train_data[2, ])
+```
+```{r}
+train_data[1, ]
+```
+```{r}
+# input shape is the vocabulary count used for the movie reviews (10,000 words)
+vocab_size <- 10000
+
+model <- keras_model_sequential()
+model %>% 
+  layer_embedding(input_dim = vocab_size, output_dim = 16) %>%
+  layer_global_average_pooling_1d() %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+model %>% summary()
+```
+```{r}
+#Configure model to use optimizer and a loss function
+model %>% compile(
+  optimizer = 'adam',
+  loss = 'binary_crossentropy',
+  metrics = list('accuracy')
+)
+```
+
+```{r}
+#Create validation set
+x_val <- train_data[1:10000, ]
+partial_x_train <- train_data[10001:nrow(train_data), ]
+
+y_val <- train_labels[1:10000]
+partial_y_train <- train_labels[10001:length(train_labels)]
+```
+```{r}
+#Train the model for 20 epochs in mini-batches of 512 samples. This is 20 iterations over all samples in the x_train and y_train tensors. While training, monitor the model’s loss and accuracy on the 10,000 samples from the validation set
+history <- model %>% fit(
+  partial_x_train,
+  partial_y_train,
+  epochs = 40,
+  batch_size = 512,
+  validation_data = list(x_val, y_val),
+  verbose=1
+)
+```
+```{r}
+#Evaluate the model
+results <- model %>% evaluate(test_data, test_labels)
+results
+```
+```{r}
+#Graph of accuracy and loss over time
+plot(history)
+```
+
