@@ -1,0 +1,195 @@
+---
+title: "Correspondence Assignment"
+author: "Roger Geertz Gonzalez"
+date: "May 29, 2020"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load the libraries + functions
+
+Load all the libraries or functions that you will use to for the rest of the assignment. It is helpful to define your libraries and functions at the top of a report, so that others can know what they need for the report to compile correctly.
+
+```{r libaries}
+##r chunk
+library(reticulate)
+py_config()
+library(Rling)
+
+```
+
+## Simple Correspondence Analysis
+
+### The Data
+
+Women and metonymy in Ancient Chinese: the data concerns metonymic patterns that were used to refer to women in texts of the Ming dynasty in China (1368 – 1644). The rows are different types of female referents, namely, imperial woman (queen or emperor's concubine), servant girl, beautiful woman, mother or grandmother, unchaste woman (prostitute or mistress), young girl, wife (or concubine). The columns are six metonymic patterns:
+
+- Action for agent or patient, e.g. "to ruin state" for "beautiful woman"
+- Body part for whole, e.g. "powder-heads" for "prostitutes"
+- Location for located, e.g. "the middle palace" for "queen"
+- A piece of clothing for person, e.g. "red dress" for "beautiful woman"
+- Characteristic for person, e.g. "respectable-kind" for "mother"
+- Possessed for possessor, e.g. "blusher and powder" for "beautiful woman"
+
+Import the data and create a mosaic plot to visualize the differences in usage across women references. 
+
+```{r}
+##r chunk
+namedata<-read.csv("chinese_names.csv")
+rownames(namedata)<-namedata[,1]
+namedata<-namedata[,-1]
+mosaicplot(namedata, las=2, shade=T, main ="Metonymic Patterns")
+```
+
+### The Analysis
+
+Run a simple correspondence analysis on the data. 
+
+```{r}
+##r chunk 
+library(ca)
+sca_model=ca(namedata)
+summary(sca_model)
+```
+
+What do the inertia values tell you about the dimensionality of the data?
+
+Create a 2D plot of the data. 
+
+```{r}
+##r chunk
+#The first 3 dimensions capture 98.6% of the variance while the 4th dimension
+#carries all of the variance.
+plot(sca_model)
+#According to the plot below, wife and imperial correspond to location meaning a #positional reference. Mother is connected to action or what a mother does. Young #reference corresponds to clothes. Women as beautiful corresponds to being posessed 
+#or a characteristic. An unchaste woman is characterized specifically by bodypart.
+```
+
+What can you tell about the word usage from examining this plot? 
+
+## Multiple Correspondence Analysis
+
+The data included is from a large project examining the definitions of words, thus, exploring their category requirements. The following columns are included:
+
+- Cue: the word participants saw in the study, what they gave a definition for.
+- POS_Cue: the part of speech of the cue word.
+- POS_Feature: the part of speech for the feature word they listed (i.e. zebra-stripes, stripes would be the feature).
+- POS_Translated: these features were then translated into a root form, and this column denotes the part of speech for the translated word.
+- A1 and A2: the type of affix that was used in the feature. For example, ducks would be translated to duck, and the difference is a numerical marker for the affix of s.
+
+Run a multiple correspondence analysis on the data, excluding the cue column. 
+
+```{r}
+##r chunk
+library(FactoMineR)
+cuedata<-read.csv("mca_data.csv")
+mca_model<-MCA(cuedata[,-1], graph=FALSE)
+summary(mca_model)
+```
+
+Plot the variables in a 2D graph. Use `invis = "ind"` rather than `col.ind = "gray"` so you can read the plot better. 
+
+```{r}
+##r chunk
+plot(mca_model, cex=.7, col.var="black", invis="ind")
+```
+
+Use the `dimdesc` function to show the usefulness of the variables and to help you understand the results. Remember that the markdown preview doesn't show you the whole output, use the console or knit to see the complete results. 
+
+```{r}
+##r chunk
+dimdesc(mca_model)
+```
+
+What are the largest predictors (i.e., R^2 over .25) of the first dimension? The largest predictors in the first dimension are: a1, pos_translated, pos_feature, and pos_cue.
+
+Looking at the category output for dimension one, what types of features does this appear to represent? (Try looking at the largest positive estimates to help distinguish what is represented by this dimension). The features represented in dimension are affix 1 vs no affixes.
+
+### Simple Categories
+
+To view simple categories like we did in the lecture, try picking a view words out of the dataset that might be considered similar. I've shown how to do this below with three words, but feel free to pick your own. Change the words and the `DF` to your dataframe name. We will overlay those as supplemental variables. 
+
+```{r}
+##r chunk
+words = c("dog", "bone", "animal")
+
+mca_model2 = MCA(cuedata[cuedata$cue %in% words , ], 
+                 quali.sup = 1, #supplemental variable
+                 graph = FALSE)
+
+```
+
+Create a 2D plot of your category analysis. 
+
+```{r}
+##r chunk 
+plot(mca_model2, invis = "ind", col.var = "darkgray", col.quali.sup = "black")
+```
+
+Add the prototype ellipses to the plot. 
+
+```{r}
+##r chunk
+plotellipses(mca_model2, keepvar = 1,  label = "quali")
+```
+
+Create a 95% CI type plot for the category.
+
+```{r}
+##r chunk
+plotellipses(mca_model2, means = F, keepvar = 1, label = "quali")
+```
+
+What can you tell about the categories from these plots? Are they distinct or overlapping? The confidence ellipses overlap with dog circling both bone and animal demonstrating how related they are together.
+
+## Run a MCA in Python
+
+In this section, run the same MCA from above in Python. Include the MCA code and print out the inertia values for your analysis. 
+
+```{python}
+##python chunk 
+import prince
+mca = prince.MCA( ##set up the mca analysis
+    n_components=2,
+    n_iter=3,
+    copy=True,
+    check_input=True,
+    engine='auto',
+    random_state=42)
+    
+cuedata = r.cuedata
+cuedata=cuedata.drop(['cue'], axis=1)
+mca = mca.fit(cuedata)
+mca.explained_inertia_
+```
+
+## Plot the Results
+
+Plot the results of your MCA using Python in the section below. I have included Python code below that will help if you are completing this assignment on the cloud. 
+
+```{python}
+##python chunk
+ax = mca.plot_coordinates(
+    X=cuedata,
+    ax=None,
+    figsize=(6, 6),
+    show_row_points=True,
+    row_points_size=10,
+    show_row_labels=False,
+    show_column_points=True,
+    column_points_size=30,
+    show_column_labels=False,
+    legend_n_cols=1
+)
+ax.get_figure()
+
+```
+
+## Explore the differences
+
+Do the R and Python results from the MCA show you the answer? Do you detect any differences between the outputs? Since I've done PCA in R before, it's easier for me to understand the R programming for MCA and then interpret it. The Python result here seems bunched up.
