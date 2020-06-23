@@ -1,0 +1,128 @@
+---
+title: 'Logistic Regression'
+author: "Roger Geertz Gonzalez"
+date: "June 7, 2020)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load the Libraries + Functions
+
+Load all the libraries or functions that you will use to for the rest of the assignment. It is helpful to define your libraries and functions at the top of a report, so that others can know what they need for the report to compile correctly.
+
+The data for this project has already been loaded. Here you will be distinguishing between the uses for *let*, *allow*, and *permit*. You should pick two of these verbs to examine and subset the dataset for only those columns. You can use the `droplevels()` function to help drop the empty level after you subset.  
+
+```{r libraries}
+library(Rling)
+data(let)
+head(let)
+```
+
+## Description of the Data
+
+The data is from the COCA: Corpus of Contemporary American English investigating the verb choice of *let*, *allow*, and *permit*. These are permissive constructions that are often paired with the word *to*. Predict the verb choice in the `Verb` column with the following independent variables:
+
+  - Reg: Spok for spoken conversations, Mag for magazine articles. 
+  - Permitter: semantic class of the clause subject, Anim for animate, Inanim for inanimate and Undef for undefined.
+  - Imper: yes for the imperative, no for not.
+  - *Note*: Year is in the dataset, which would be awesome but gave me trouble. You can try adding it if you want. 
+
+## Sample Size Requirements
+
+- Is the split between your choosen verbs even enough to think you could predict them?
+
+```{r samplesize}
+data(let)
+let<-subset(let, Verb !="allow")
+table(droplevels(let)$Verb)#The sample size total is 351 which is greater than 10
+# and thus usable for the four predictors; the ratio of the split
+#is 53:47 which means that we are able to also predict the smaller category
+```
+
+## Running a Binary Logistic Regression
+
+- Run the logistic regression using the `rms` package. 
+  - Use the $\chi^2$ test - is the overall model predictive of verb choice? Is it significant?
+  - What is Nagelkerke's pseudo-$R^2$? What does it tell you about goodness of fit?
+  - What is the C statistic? How well are we predicting?
+
+```{r runrms}
+#Year will not be used as a predictor since it might be an issue
+library(rms)
+model = lrm(Verb ~ Reg + Permitter+ Imper,
+            data = let)
+model
+#The X2, 204.92, is significant since it's less than 0.05.Nagelkerke's pseudo-
+#R2 is 59.1% it is a relative measure among similar models indicating how well the #model explains the data.The C statistics is the Concordance Index; here it is 
+#88.2% and means it is excellent showing how close the probability of the outcome
+#matches the actual outcome
+```
+
+## Coefficients
+
+- Explain each coefficient - are they significant? What do they imply if they are significant (i.e., which verb does it predict)?
+    - Reg:
+    - Permitter: 
+    - Imper: 
+
+## Interactions
+
+- Add the interaction between Imper and Reg by doing `Imper*Reg`, but remember you will need to do a `glm` model.
+- Use the `anova` function to answer if the addition of the interaction was significant.
+  - Is the interaction useful?
+- Use the `visreg` library and funtion to visualize the interaction.
+  - How would you explain that interaction? 
+  
+
+```{r interaction}
+table(droplevels(let)$Verb, let$Permitter)
+table(droplevels(let)$Verb, let$Reg)
+table(droplevels(let)$Verb, let$Imper)
+#When Permitter is animate, let is most likely predicted. When it's inanimate, 
+#permit is predicted. When the permitter is undefined, permit will be predicted.
+#Reg comparing Spoke vs Magazine articles is not significant. When imperative,
+#let is predicted, when it is not, permit is predicted.
+
+model1 = glm(Verb ~ Reg + Permitter + Imper,
+             family = binomial,
+             data = let)
+model2 = glm(Verb ~ Permitter + Imper*Reg,
+             family = binomial,
+             data = let)
+anova(model1, model2, test = "Chisq")
+
+summary(model2)
+#The addition of the model was slighlty significant at 0.49.
+
+library(visreg)
+visreg(model2, "Imper", by = "Reg")#There is more of an interaction between
+#imperative and spoken predicting let.
+
+table(droplevels(let)$Verb, let$Reg, let$Imper)
+#
+```
+
+## Outliers
+
+- Use the `car` library and the `influencePlot()` to create a picture of the outliers. 
+  - Are there major outliers for this data?
+
+```{r outliers}
+library(car)
+influencePlot(model2)#There are 2 major outliers at the top beyond 2(the
+#dashed line.)
+```
+
+## Assumptions
+
+- Explore the `vif` values of the original model (not the interaction model) and determine if you meet the assumption of additivity (meaning no multicollinearity). 
+
+```{r vif}
+rms::vif(model)#There is no multicollinearity here since there are no 
+#values above 5
+```
+
+No Python in this section! You will use the functions from this week in a few assignments coming up!
